@@ -3,8 +3,8 @@ from uuid import UUID
 import os
 import time
 
-from app.core.security import get_current_user, get_current_user_light, require_role, CurrentUser
-from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfileResponse, GoogleUserEnsure
+from app.core.security import get_current_user, get_current_user_light, get_current_user_phone_light, require_role, CurrentUser
+from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfileResponse, GoogleUserEnsure, PhoneUserEnsure
 from app.services import profile_service
 from app.db.supabase_client import supabase
 from app.core.rate_limit import upload_rate_limiter
@@ -227,4 +227,50 @@ def ensure_google_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to ensure Google user: {str(e)}"
+        )
+
+@router.post("/ensure-user", status_code=status.HTTP_200_OK)
+def ensure_phone_user(
+    data: PhoneUserEnsure,
+    current_user: CurrentUser = Depends(get_current_user_phone_light)
+):
+    """
+    Idempotent endpoint for phone-OTP authenticated users.
+    Ensures both the public.users row and the profiles row exist for the authenticated user.
+    If rows already exist, returns success without modification.
+    Used by login and client registration flows after phone OTP verification.
+    """
+    user_id = str(current_user.id)
+
+    try:
+        # 1. Check if public.users row exists
+        users_res = supabase.table("users").select("id, role").eq("id", user_id).execute()
+
+        if not users_res.data:
+            # Create the public.users row
+            supabase.table("users").insert({
+                "id": user_id,
+                "email": current_user.email or "",
+                "role": data.role,
+            }).execute()
+
+        # 2. Check if profile exists
+        existing_profile = profile_service.get_profile(current_user.id)
+        if not existing_profile:
+            # Create profile with available data
+            profile_data = ProfileCreate(
+                full_name=data.full_name or "Phone User",
+                phone=data.phone,
+                city=data.city or "Not Set",
+            )
+            profile_service.create_profile(current_user.id, profile_data)
+
+        return {"status": "ok", "message": "User and profile ensured."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to ensure phone user: {str(e)}"
         )

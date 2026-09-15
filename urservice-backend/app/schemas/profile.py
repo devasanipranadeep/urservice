@@ -27,3 +27,9 @@ class GoogleUserEnsure(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=100)
     phone: Optional[str] = Field('', max_length=20)
     city: Optional[str] = Field('', max_length=100)
+
+class PhoneUserEnsure(BaseModel):
+    role: str = Field(..., pattern=r'^(client|vendor)$')
+    full_name: Optional[str] = Field('', max_length=100)
+    phone: str = Field(..., min_length=10, max_length=20)
+    city: Optional[str] = Field('', max_length=100)
