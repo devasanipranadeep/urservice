@@ -253,6 +253,8 @@ def ensure_phone_user(
                 "email": current_user.email or "",
                 "role": data.role,
             }).execute()
+        elif data.role == "vendor" and users_res.data[0].get("role") != "vendor":
+            supabase.table("users").update({"role": "vendor"}).eq("id", user_id).execute()
 
         # 2. Check if profile exists
         existing_profile = profile_service.get_profile(current_user.id)

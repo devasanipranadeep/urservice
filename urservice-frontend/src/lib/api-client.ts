@@ -73,7 +73,11 @@ async function request<T>(
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError(0, (error as Error).message || 'Network request failed');
+    const msg = (error as Error)?.message || 'Network request failed';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed')) {
+      throw new ApiError(0, 'Unable to connect to backend server. Please verify your connection or file sizes and try again.');
+    }
+    throw new ApiError(0, msg);
   }
 }
 

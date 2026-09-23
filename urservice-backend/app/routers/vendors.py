@@ -45,7 +45,7 @@ def validate_image_file(file: UploadFile, max_size_mb: float = 2.0) -> bytes:
         )
     return content
 
-def validate_doc_file(file: UploadFile, max_size_mb: float = 5.0) -> bytes:
+def validate_doc_file(file: UploadFile, max_size_mb: float = 3.0) -> bytes:
     """
     Validates that a file is a valid PDF or Image and within the size limit.
     Returns file bytes.
@@ -147,8 +147,8 @@ async def register_vendor_endpoint(
             "doc_purpose": "business_logo"
         })
 
-    # Validate Identity Verification Document (Required, max 5MB)
-    id_bytes = validate_doc_file(identity_file, max_size_mb=5.0)
+    # Validate Identity Verification Document (Required, max 3MB)
+    id_bytes = validate_doc_file(identity_file, max_size_mb=3.0)
     _, id_ext = os.path.splitext(identity_file.filename or "")
     identity_type = json_data.get("identity_type", "identity_document")
     files_to_upload.append({
@@ -171,7 +171,7 @@ async def register_vendor_endpoint(
 
     for doc_type, file_obj in business_proofs:
         if file_obj and file_obj.filename:
-            doc_bytes = validate_doc_file(file_obj, max_size_mb=5.0)
+            doc_bytes = validate_doc_file(file_obj, max_size_mb=3.0)
             _, doc_ext = os.path.splitext(file_obj.filename or "")
             # Resolve actual document type label (for category_certificate, use category name from business info)
             actual_type = doc_type

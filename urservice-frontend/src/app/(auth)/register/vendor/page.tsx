@@ -28,6 +28,57 @@ const STEPS = [
   'Availability & Terms',
 ];
 
+async function compressImage(file: File, maxDimension = 1200, quality = 0.8): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
+          const compressedFile = new File([blob], compressedName, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
+}
+
 export default function VendorRegistrationWizard() {
   const router = useRouter();
   const { session, isAuthenticated } = useSession();
@@ -224,8 +275,8 @@ export default function VendorRegistrationWizard() {
     return () => clearTimeout(delayDebounce);
   }, [watchedLat, watchedLon]);
 
-  // --- Helper to handle local file upload change ---
-  const handleFileChange = (key: string, file: File | null) => {
+  // --- Helper to handle local file upload change with automatic compression & validation ---
+  const handleFileChange = async (key: string, file: File | null) => {
     if (!file) {
       const updatedFiles = { ...wizardFiles };
       delete updatedFiles[key];
@@ -237,18 +288,34 @@ export default function VendorRegistrationWizard() {
       return;
     }
 
-    setWizardFiles((prev) => ({ ...prev, [key]: file }));
+    // Size limit check for non-image files (e.g. PDFs)
+    if (!file.type.startsWith('image/')) {
+      if (file.size > 3 * 1024 * 1024) {
+        setErrorMsg(`File "${file.name}" exceeds the 3MB limit. Please upload a document under 3MB.`);
+        return;
+      }
+      setWizardFiles((prev) => ({ ...prev, [key]: file }));
+      setFilePreviews((prev) => ({ ...prev, [key]: 'pdf_icon' }));
+      return;
+    }
 
-    // Generate thumbnail preview if it is an image
-    if (file.type.startsWith('image/')) {
+    // For images, automatically compress to ensure total payload stays small and fast
+    try {
+      const compressed = await compressImage(file, 1200, 0.8);
+      setWizardFiles((prev) => ({ ...prev, [key]: compressed }));
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFilePreviews((prev) => ({ ...prev, [key]: reader.result as string }));
+      };
+      reader.readAsDataURL(compressed);
+    } catch {
+      setWizardFiles((prev) => ({ ...prev, [key]: file }));
       const reader = new FileReader();
       reader.onloadend = () => {
         setFilePreviews((prev) => ({ ...prev, [key]: reader.result as string }));
       };
       reader.readAsDataURL(file);
-    } else {
-      // PDF or non-image
-      setFilePreviews((prev) => ({ ...prev, [key]: 'pdf_icon' }));
     }
   };
 
@@ -293,6 +360,17 @@ export default function VendorRegistrationWizard() {
               token: otpCode,
               role: 'vendor',
             });
+            // Ensure public.users row with role="vendor" exists in application database
+            try {
+              await apiClient.post('/api/profiles/ensure-user', {
+                role: 'vendor',
+                full_name: personalValues.full_name?.trim() || 'Vendor Partner',
+                phone: formatPhoneNumber(personalValues.phone),
+                city: 'Not Set',
+              });
+            } catch (ensureErr) {
+              console.warn('ensure-user call notice:', ensureErr);
+            }
             setCurrentStep(2);
           } catch (err) {
             setErrorMsg((err as Error).message || 'Invalid or expired OTP code.');
@@ -376,10 +454,31 @@ export default function VendorRegistrationWizard() {
       return;
     }
 
+    // Check total upload payload size
+    let totalBytes = 0;
+    Object.values(wizardFiles).forEach((f) => {
+      if (f && f instanceof File) totalBytes += f.size;
+    });
+    if (totalBytes > 4 * 1024 * 1024) {
+      setErrorMsg('The total size of the uploaded documents exceeds 4MB. Please upload compressed images or PDFs.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const personalData = wizardData.personal;
 
-      // User is already authenticated via Phone OTP during Step 1
+      // Ensure user record with vendor role exists in application database
+      try {
+        await apiClient.post('/api/profiles/ensure-user', {
+          role: 'vendor',
+          full_name: personalData.full_name?.trim() || 'Vendor Partner',
+          phone: formatPhoneNumber(personalData.phone),
+          city: wizardData.business?.city || 'Not Set',
+        });
+      } catch (ensureErr) {
+        console.warn('ensure-user check notice:', ensureErr);
+      }
 
       // 2. Build Multipart FormData payload
       const payloadData = {

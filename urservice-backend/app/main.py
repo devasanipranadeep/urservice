@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Depends, Request, status
+from fastapi import FastAPI, Depends, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
+import re
 
 from app.routers.test_auth_role import router as test_router
 from app.routers.profiles import router as profiles_router
@@ -22,32 +24,66 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration: Allow localhost and production Vercel frontend
+# CORS configuration: Allow localhost, production Vercel frontend, and preview deployments
 origins = [
     settings.FRONTEND_URL,
+    settings.FRONTEND_URL.rstrip("/"),
     "https://urservice.vercel.app",
+    "https://urservice.vercel.app/",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
+origin_regex = r"^https:\/\/.*(urservice.*\.vercel\.app|localhost:\d+|127\.0\.0\.1:\d+)"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
+
+def get_cors_headers(request: Request) -> dict:
+    origin = request.headers.get("origin")
+    if not origin:
+        return {}
+    clean_origin = origin.rstrip("/")
+    if (
+        origin in origins
+        or clean_origin in origins
+        or "localhost" in origin
+        or "127.0.0.1" in origin
+        or re.match(origin_regex, origin)
+    ):
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Vary": "Origin",
+        }
+    return {}
+
+@app.exception_handler(StarletteHTTPException)
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    headers = dict(exc.headers) if getattr(exc, "headers", None) else {}
+    cors_headers = get_cors_headers(request)
+    headers.update(cors_headers)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Log validation details server-side
     logger.error(f"Request validation failed: {exc.errors()}")
-    headers = {}
-    origin = request.headers.get("origin")
-    if origin:
-        if origin in origins or "localhost" in origin or "127.0.0.1" in origin:
-            headers["Access-Control-Allow-Origin"] = origin
-            headers["Access-Control-Allow-Credentials"] = "true"
+    headers = get_cors_headers(request)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": "Request validation failed.", "errors": exc.errors()},
@@ -56,14 +92,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # Log exception traceback server-side
     logger.error(f"Global unhandled exception occurred: {str(exc)}", exc_info=True)
-    headers = {}
-    origin = request.headers.get("origin")
-    if origin:
-        if origin in origins or "localhost" in origin or "127.0.0.1" in origin:
-            headers["Access-Control-Allow-Origin"] = origin
-            headers["Access-Control-Allow-Credentials"] = "true"
+    headers = get_cors_headers(request)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An internal server error occurred."},

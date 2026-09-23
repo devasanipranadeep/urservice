@@ -28,26 +28,32 @@ def register_vendor(
     business_logo_path = None
 
     try:
-        # Step 1: Perform storage uploads
-        for f in files_to_upload:
-            bucket = f["bucket"]
-            path = f["path"]
-            content = f["content"]
-            content_type = f["content_type"]
-            doc_purpose = f.get("doc_purpose")  # 'profile_photo', 'business_logo', or 'document'
+        # Step 1: Perform storage uploads concurrently
+        import concurrent.futures
 
-            # Upload to Supabase Storage
-            supabase.storage.from_(bucket).upload(
-                path=path,
-                file=content,
-                file_options={"content-type": content_type, "x-upsert": "true"}
+        def _do_upload(item):
+            b = item["bucket"]
+            p = item["path"]
+            c = item["content"]
+            ct = item["content_type"]
+            supabase.storage.from_(b).upload(
+                path=p,
+                file=c,
+                file_options={"content-type": ct, "x-upsert": "true"}
             )
-            uploaded_storage_paths.append((bucket, path))
+            return (b, p)
 
+        if files_to_upload:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(5, len(files_to_upload))) as executor:
+                results = list(executor.map(_do_upload, files_to_upload))
+                uploaded_storage_paths.extend(results)
+
+        for f in files_to_upload:
+            doc_purpose = f.get("doc_purpose")
             if doc_purpose == "profile_photo":
-                profile_photo_path = path
+                profile_photo_path = f["path"]
             elif doc_purpose == "business_logo":
-                business_logo_path = path
+                business_logo_path = f["path"]
 
         # Step 2: Insert into public.vendors
         vendor_data = {
