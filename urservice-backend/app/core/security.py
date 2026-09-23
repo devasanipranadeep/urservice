@@ -20,6 +20,18 @@ class CurrentUser(BaseModel):
 # Simple in-memory cache for JWKS keys to avoid requesting the endpoint on every request
 JWKS_CACHE: Dict[str, Dict[str, Any]] = {}
 
+import time
+from typing import Tuple
+
+# In-memory user cache with TTL to eliminate redundant Supabase network queries per request
+USER_CACHE: Dict[str, Tuple[CurrentUser, float]] = {}
+USER_CACHE_TTL = 180.0  # 3 minutes
+
+def invalidate_user_cache(user_id: str | UUID):
+    """Invalidate cached user credentials so role or profile updates take effect immediately."""
+    USER_CACHE.pop(str(user_id), None)
+
+
 def get_jwk_by_kid(kid: str) -> Dict[str, Any]:
     """
     Fetch the JSON Web Key matching the given key ID (kid) from Supabase.
@@ -108,6 +120,12 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # 1. Check in-memory user cache with TTL to eliminate 2+ external network queries
+    now = time.time()
+    cached = USER_CACHE.get(user_id)
+    if cached and cached[1] > now:
+        return cached[0]
+
     # Check if the user is authenticated in Supabase Auth (via Phone OTP or Email)
     try:
         auth_user_res = supabase.auth.admin.get_user_by_id(user_id)
@@ -157,11 +175,14 @@ async def get_current_user(
         )
 
     user_data = response.data[0]
-    return CurrentUser(
+    current_user = CurrentUser(
         id=UUID(user_id),
         email=user_data.get("email") or email or "",
         role=user_data.get("role")
     )
+    # Save to user cache
+    USER_CACHE[user_id] = (current_user, now + USER_CACHE_TTL)
+    return current_user
 
 def require_role(*allowed_roles: str):
     """

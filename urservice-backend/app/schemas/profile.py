@@ -20,6 +20,7 @@ class ProfileResponse(BaseModel):
     phone: Optional[str] = None
     city: str
     profile_photo_url: Optional[str] = None
+    signed_photo_url: Optional[str] = None
     created_at: datetime
 
 class GoogleUserEnsure(BaseModel):

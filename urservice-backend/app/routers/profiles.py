@@ -2,14 +2,48 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from uuid import UUID
 import os
 import time
+from typing import Dict, Tuple, Optional
+import logging
 
-from app.core.security import get_current_user, get_current_user_light, get_current_user_phone_light, require_role, CurrentUser
+from app.core.security import (
+    get_current_user,
+    get_current_user_light,
+    get_current_user_phone_light,
+    require_role,
+    CurrentUser,
+    invalidate_user_cache,
+)
 from app.schemas.profile import ProfileCreate, ProfileUpdate, ProfileResponse, GoogleUserEnsure, PhoneUserEnsure
 from app.services import profile_service
 from app.db.supabase_client import supabase
 from app.core.rate_limit import upload_rate_limiter
 
+logger = logging.getLogger("app.profiles")
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
+
+# In-memory signed photo URL cache: user_id -> (signed_url, expiry)
+PHOTO_URL_CACHE: Dict[str, Tuple[Optional[str], float]] = {}
+
+def get_or_create_signed_photo_url(user_id: UUID | str, storage_path: Optional[str]) -> Optional[str]:
+    """Returns cached signed photo URL or generates a fresh one valid for 1 hour."""
+    if not storage_path:
+        return None
+    user_key = str(user_id)
+    now = time.time()
+    cached = PHOTO_URL_CACHE.get(user_key)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    try:
+        url_res = supabase.storage.from_("profile-images").create_signed_url(path=storage_path, expires_in=3600)
+        signed_url = url_res.get("signedURL") or url_res.get("signedUrl")
+        if signed_url:
+            # Cache for 50 minutes (3000s)
+            PHOTO_URL_CACHE[user_key] = (signed_url, now + 3000.0)
+            return signed_url
+    except Exception as e:
+        logger.warning(f"Failed to generate signed photo URL for user {user_id}: {e}")
+    return None
 
 
 @router.post("", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
@@ -30,6 +64,7 @@ def create_user_profile(
     
     try:
         profile = profile_service.create_profile(current_user.id, data)
+        invalidate_user_cache(current_user.id)
         return profile
     except Exception as e:
         raise HTTPException(
@@ -40,7 +75,7 @@ def create_user_profile(
 @router.get("/me", response_model=ProfileResponse)
 def get_my_profile(current_user: CurrentUser = Depends(get_current_user)):
     """
-    Fetches the profile of the current authenticated user.
+    Fetches the profile of the current authenticated user, including pre-signed photo URL.
     """
     profile = profile_service.get_profile(current_user.id)
     if not profile:
@@ -48,7 +83,12 @@ def get_my_profile(current_user: CurrentUser = Depends(get_current_user)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profile not found."
         )
-    return profile
+    
+    profile_data = dict(profile)
+    path = profile_data.get("profile_photo_url")
+    if path:
+        profile_data["signed_photo_url"] = get_or_create_signed_photo_url(current_user.id, path)
+    return profile_data
 
 @router.patch("/me", response_model=ProfileResponse)
 def update_my_profile(
@@ -68,6 +108,7 @@ def update_my_profile(
     
     try:
         updated = profile_service.update_profile(current_user.id, data)
+        invalidate_user_cache(current_user.id)
         return updated
     except Exception as e:
         raise HTTPException(
@@ -143,8 +184,12 @@ async def upload_profile_photo(
         supabase.table("profiles").update({"profile_photo_url": storage_path}).eq("user_id", str(current_user.id)).execute()
 
         # 6. Generate signed URL
-        url_res = supabase.storage.from_("profile-images").create_signed_url(path=storage_path, expires_in=300)
+        url_res = supabase.storage.from_("profile-images").create_signed_url(path=storage_path, expires_in=3600)
         signed_url = url_res.get("signedURL") or url_res.get("signedUrl")
+
+        # Update cache
+        if signed_url:
+            PHOTO_URL_CACHE[str(current_user.id)] = (signed_url, time.time() + 3000.0)
 
         return {
             "profile_photo_url": storage_path,
@@ -160,8 +205,14 @@ async def upload_profile_photo(
 @router.get("/me/photo-url")
 def get_profile_photo_url(current_user: CurrentUser = Depends(get_current_user)):
     """
-    Generates on-demand a fresh signed URL (300s expiry) for the user's profile photo.
+    Generates on-demand or returns cached signed URL for the user's profile photo.
     """
+    user_key = str(current_user.id)
+    now = time.time()
+    cached = PHOTO_URL_CACHE.get(user_key)
+    if cached and cached[1] > now:
+        return {"signedUrl": cached[0]}
+
     profile = profile_service.get_profile(current_user.id)
     if not profile:
         raise HTTPException(
@@ -173,15 +224,8 @@ def get_profile_photo_url(current_user: CurrentUser = Depends(get_current_user))
     if not path:
         return {"signedUrl": None}
 
-    try:
-        url_res = supabase.storage.from_("profile-images").create_signed_url(path=path, expires_in=300)
-        signed_url = url_res.get("signedURL") or url_res.get("signedUrl")
-        return {"signedUrl": signed_url}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate signed URL: {str(e)}"
-        )
+    signed_url = get_or_create_signed_photo_url(current_user.id, path)
+    return {"signedUrl": signed_url}
 
 @router.post("/ensure-google-user", status_code=status.HTTP_200_OK)
 def ensure_google_user(
@@ -219,6 +263,7 @@ def ensure_google_user(
             )
             profile_service.create_profile(current_user.id, profile_data)
 
+        invalidate_user_cache(user_id)
         return {"status": "ok", "message": "User and profile ensured."}
 
     except HTTPException:
@@ -267,6 +312,7 @@ def ensure_phone_user(
             )
             profile_service.create_profile(current_user.id, profile_data)
 
+        invalidate_user_cache(user_id)
         return {"status": "ok", "message": "User and profile ensured."}
 
     except HTTPException:

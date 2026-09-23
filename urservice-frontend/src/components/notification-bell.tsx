@@ -35,14 +35,20 @@ export default function NotificationBell() {
 
   const { isAuthenticated, isLoading } = useSession();
 
+  const isFetchingCountRef = useRef(false);
+
   // Fetch count of unread notifications
   const fetchUnreadCount = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || isFetchingCountRef.current) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    isFetchingCountRef.current = true;
     try {
       const res = await apiClient.get<UnreadCountResponse>('/api/notifications/me/unread-count');
       setUnreadCount(res.count);
     } catch (err) {
       console.error('Failed to fetch unread count:', err);
+    } finally {
+      isFetchingCountRef.current = false;
     }
   };
 
@@ -107,7 +113,7 @@ export default function NotificationBell() {
     };
   }, []);
 
-  // Fetch count on mount and set polling interval (every 15 seconds)
+  // Fetch count on mount and set polling interval (every 30 seconds when active)
   useEffect(() => {
     if (isLoading || !isAuthenticated) return;
 
@@ -120,12 +126,12 @@ export default function NotificationBell() {
     };
     window.addEventListener('refresh-notifications', handleRefresh);
 
-    const interval = setInterval(fetchUnreadCount, 15000);
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => {
       clearInterval(interval);
       window.removeEventListener('refresh-notifications', handleRefresh);
     };
-  }, [isOpen, isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading]);
 
   // Fetch list of notifications when dropdown opens
   useEffect(() => {

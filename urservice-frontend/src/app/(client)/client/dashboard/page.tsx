@@ -16,6 +16,7 @@ interface ProfileData {
   phone: string | null;
   city: string;
   profile_photo_url: string | null;
+  signed_photo_url?: string | null;
   created_at: string;
 }
 
@@ -89,28 +90,48 @@ function ClientDashboardContent() {
   const fetchDashboardData = async () => {
     setLoading(true);
     setApiError(null);
+
+    // If cached photo is available in sessionStorage, populate immediately
+    if (typeof window !== 'undefined' && user?.id) {
+      const cached = sessionStorage.getItem(`profile_photo_${user.id}`);
+      if (cached) setSignedPhotoUrl(cached);
+    }
+
     try {
-      // 1. Fetch Profile
-      const profileData = await apiClient.get<ProfileData>('/api/profiles/me');
+      // 1. Fetch Profile and Bookings in parallel
+      const [profileData, bookingsData] = await Promise.all([
+        apiClient.get<ProfileData>('/api/profiles/me'),
+        apiClient.get<Booking[]>('/api/bookings/me').catch(() => [] as Booking[]),
+      ]);
+
       setProfile(profileData);
-      
+      setBookings(bookingsData);
+
       // Initialize edit fields
       setEditName(profileData.full_name);
       setEditPhone(profileData.phone || '');
       setEditCity(profileData.city);
 
-      // 2. Fetch Photo URL if path exists
-      if (profileData.profile_photo_url) {
-        const photoRes = await apiClient.get<{ signedUrl: string | null }>('/api/profiles/me/photo-url');
-        setSignedPhotoUrl(photoRes.signedUrl);
-        if (photoRes.signedUrl && typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('profile-updated', { detail: { signedUrl: photoRes.signedUrl } }));
+      // 2. Resolve photo URL: use pre-signed photo URL from backend if available, or fetch in background
+      if (profileData.signed_photo_url) {
+        setSignedPhotoUrl(profileData.signed_photo_url);
+        if (typeof window !== 'undefined' && user?.id) {
+          sessionStorage.setItem(`profile_photo_${user.id}`, profileData.signed_photo_url);
+          window.dispatchEvent(new CustomEvent('profile-updated', { detail: { signedUrl: profileData.signed_photo_url } }));
         }
+      } else if (profileData.profile_photo_url) {
+        apiClient.get<{ signedUrl: string | null }>('/api/profiles/me/photo-url')
+          .then((photoRes) => {
+            if (photoRes?.signedUrl) {
+              setSignedPhotoUrl(photoRes.signedUrl);
+              if (typeof window !== 'undefined' && user?.id) {
+                sessionStorage.setItem(`profile_photo_${user.id}`, photoRes.signedUrl);
+                window.dispatchEvent(new CustomEvent('profile-updated', { detail: { signedUrl: photoRes.signedUrl } }));
+              }
+            }
+          })
+          .catch(() => {});
       }
-
-      // 3. Fetch Bookings
-      const bookingsData = await apiClient.get<Booking[]>('/api/bookings/me');
-      setBookings(bookingsData);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // Profile doesn't exist yet, we will prompt user to create one

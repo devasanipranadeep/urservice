@@ -15,7 +15,44 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+// In-flight GET request deduplication map: cacheKey -> Promise<T>
+const inFlightRequests = new Map<string, Promise<any>>();
+
+// In-memory response cache: cacheKey -> { data: any, expiresAt: number }
+const responseCache = new Map<string, { data: any; expiresAt: number }>();
+
+// TTL configurations (milliseconds)
+const CACHE_TTL_RULES: Array<{ match: RegExp | string; ttlMs: number }> = [
+  { match: '/api/profiles/me/photo-url', ttlMs: 60_000 },
+  { match: '/api/profiles/me', ttlMs: 15_000 },
+  { match: '/api/notifications/me/unread-count', ttlMs: 10_000 },
+  { match: '/api/notifications/me', ttlMs: 8_000 },
+];
+
+function getCacheTtl(path: string): number {
+  for (const rule of CACHE_TTL_RULES) {
+    if (typeof rule.match === 'string' && path.includes(rule.match)) {
+      return rule.ttlMs;
+    } else if (rule.match instanceof RegExp && rule.match.test(path)) {
+      return rule.ttlMs;
+    }
+  }
+  return 4_000; // 4s default for other GET requests
+}
+
+function clearClientCache(pattern?: string) {
+  if (!pattern) {
+    responseCache.clear();
+    return;
+  }
+  for (const key of responseCache.keys()) {
+    if (key.includes(pattern)) {
+      responseCache.delete(key);
+    }
+  }
+}
+
+async function executeRequest<T>(
   method: string,
   path: string,
   body?: any,
@@ -81,10 +118,65 @@ async function request<T>(
   }
 }
 
+async function request<T>(
+  method: string,
+  path: string,
+  body?: any,
+  options?: RequestInit & { noCache?: boolean }
+): Promise<T> {
+  const isGet = method.toUpperCase() === 'GET';
+
+  // Mutations invalidate cached GET data to ensure freshness
+  if (!isGet) {
+    clearClientCache();
+    return executeRequest<T>(method, path, body, options);
+  }
+
+  // Cache check for GET requests
+  const cacheKey = `${method}:${path}`;
+  const now = Date.now();
+
+  if (!options?.noCache) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.data as T;
+    }
+
+    // In-flight deduplication: return existing promise if identical request is already running
+    const existingPromise = inFlightRequests.get(cacheKey);
+    if (existingPromise) {
+      return existingPromise as Promise<T>;
+    }
+  }
+
+  // Execute request with in-flight tracking
+  const requestPromise = executeRequest<T>(method, path, body, options)
+    .then((result) => {
+      if (!options?.noCache) {
+        const ttl = getCacheTtl(path);
+        responseCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+      }
+      inFlightRequests.delete(cacheKey);
+      return result;
+    })
+    .catch((err) => {
+      inFlightRequests.delete(cacheKey);
+      throw err;
+    });
+
+  if (!options?.noCache) {
+    inFlightRequests.set(cacheKey, requestPromise);
+  }
+
+  return requestPromise;
+}
+
 export const apiClient = {
-  get: <T>(path: string, options?: RequestInit) => request<T>('GET', path, undefined, options),
+  get: <T>(path: string, options?: RequestInit & { noCache?: boolean }) => request<T>('GET', path, undefined, options),
   post: <T>(path: string, body: any, options?: RequestInit) => request<T>('POST', path, body, options),
   put: <T>(path: string, body: any, options?: RequestInit) => request<T>('PUT', path, body, options),
   patch: <T>(path: string, body: any, options?: RequestInit) => request<T>('PATCH', path, body, options),
   delete: <T>(path: string, options?: RequestInit) => request<T>('DELETE', path, undefined, options),
+  invalidateCache: (pattern?: string) => clearClientCache(pattern),
+  clearCache: () => clearClientCache(),
 };
