@@ -7,6 +7,7 @@ import { Menu, X, User, LogOut, LayoutDashboard, Calendar, ShieldCheck } from 'l
 import { useSession } from '../hooks/use-session';
 import { supabase } from '../lib/supabase';
 import { apiClient } from '../lib/api-client';
+import NotificationBell from './notification-bell';
 
 interface NavbarProps {
   activePage?: 'home' | 'services' | 'how-it-works';
@@ -217,6 +218,9 @@ export default function Navbar({ activePage }: NavbarProps) {
                       </Link>
                     ) : null}
 
+                    {/* Notification Bell */}
+                    <NotificationBell />
+
                     {/* Profile Photo Avatar Button & Dropdown */}
                     <div className="relative" ref={profileMenuRef}>
                       <button
@@ -379,27 +383,30 @@ export default function Navbar({ activePage }: NavbarProps) {
                     </Link>
                   </>
                 ) : (
-                  <Link
-                    href={
-                      userRole === 'admin'
-                        ? '/admin/dashboard'
-                        : userRole === 'vendor'
-                        ? '/vendor/dashboard'
-                        : '/client/dashboard'
-                    }
-                    className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200/80 rounded-full hover:bg-slate-100 transition-colors"
-                    title="Go to Dashboard"
-                  >
-                    <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-200 shrink-0 flex items-center justify-center">
-                      {photoUrl ? (
-                        <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-[10px]">
-                          {displayName ? displayName.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5 text-white" />}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <NotificationBell />
+                    <Link
+                      href={
+                        userRole === 'admin'
+                          ? '/admin/dashboard'
+                          : userRole === 'vendor'
+                          ? '/vendor/dashboard'
+                          : '/client/dashboard'
+                      }
+                      className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200/80 rounded-full hover:bg-slate-100 transition-colors"
+                      title="Go to Dashboard"
+                    >
+                      <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-200 shrink-0 flex items-center justify-center">
+                        {photoUrl ? (
+                          <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-[10px]">
+                            {displayName ? displayName.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  </div>
                 )}
               </>
             )}

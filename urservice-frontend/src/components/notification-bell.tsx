@@ -139,20 +139,21 @@ export default function NotificationBell() {
       {/* Bell Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-500 hover:text-slate-800 transition-all shadow-sm focus:outline-none"
+        className="relative w-10 h-10 rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 text-slate-600 hover:text-indigo-600 flex items-center justify-center transition-all shadow-sm hover:shadow focus:outline-none cursor-pointer"
         title="Notifications"
+        aria-label="Notifications"
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white ring-2 ring-white animate-pulse">
-            {unreadCount}
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white ring-2 ring-white animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden font-sans animate-slide-down">
+        <div className="absolute -right-12 sm:right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden font-sans animate-slide-down">
           
           {/* Header */}
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
