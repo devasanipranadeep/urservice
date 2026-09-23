@@ -31,6 +31,9 @@ export async function sendPhoneOtp({ phone }: SendOtpParams) {
   const formattedPhone = formatPhoneNumber(phone);
   const { data, error } = await supabase.auth.signInWithOtp({
     phone: formattedPhone,
+    options: {
+      shouldCreateUser: true,
+    },
   });
 
   if (error) {
@@ -65,3 +68,54 @@ export async function verifyPhoneOtp({ phone, token, role }: VerifyOtpParams) {
   return data;
 }
 
+interface SendEmailOtpParams {
+  email: string;
+}
+
+interface VerifyEmailOtpParams {
+  email: string;
+  token: string;
+  role?: 'client' | 'vendor' | 'admin';
+}
+
+/**
+ * Sends a 6-digit OTP code to the provided email address.
+ */
+export async function sendEmailOtp({ email }: SendEmailOtpParams) {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: {
+      shouldCreateUser: true,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Verifies the 6-digit OTP code sent to the email address.
+ * If user role is provided, updates user metadata.
+ */
+export async function verifyEmailOtp({ email, token, role }: VerifyEmailOtpParams) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: token.trim(),
+    type: 'email',
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (role && data.session) {
+    await supabase.auth.updateUser({
+      data: { role },
+    });
+  }
+
+  return data;
+}

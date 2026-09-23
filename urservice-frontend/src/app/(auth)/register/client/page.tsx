@@ -71,16 +71,17 @@ export default function ClientRegisterPage() {
       // 1. Verify OTP with Supabase
       await verifyPhoneOtp({ phone, token: otp, role: 'client' });
 
-      // 2. Create user profile in backend DB
+      // 2. Create user and profile in backend DB
       try {
-        await apiClient.post('/api/profiles', {
+        await apiClient.post('/api/profiles/ensure-user', {
+          role: 'client',
           full_name: fullName.trim(),
           phone: formatPhoneNumber(phone),
           city: city.trim(),
         });
       } catch (profileErr) {
-        // If profile creation returns 400 (already exists), ignore and proceed
-        console.warn('Profile sync:', profileErr);
+        // If profile creation returns an error, log warning and proceed
+        console.warn('Profile ensure failed:', profileErr);
       }
 
       // 3. Redirect to Client Home

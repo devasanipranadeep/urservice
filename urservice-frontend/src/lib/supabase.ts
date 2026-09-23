@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'paste-your-supabase-anon-public-key-here').trim();
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'paste-your-supabase-anon-public-key-here') {
+if (
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === 'paste-your-supabase-anon-public-key-here' ||
+  supabaseUrl.includes('placeholder')
+) {
   console.warn(
     'Supabase URL or Anon Key is missing or default. Authentication will fail. Please configure your .env.local file.'
   );

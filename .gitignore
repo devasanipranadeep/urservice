@@ -1,12 +1,14 @@
 # Root ignores
 venv/
 .env*
+!.env*.example
 *.log
 
 # Frontend ignores
 urservice-frontend/node_modules/
 urservice-frontend/.next/
 urservice-frontend/.env*
+!urservice-frontend/.env*.example
 urservice-frontend/out/
 urservice-frontend/build/
 urservice-frontend/tsconfig.tsbuildinfo
@@ -14,6 +16,7 @@ urservice-frontend/tsconfig.tsbuildinfo
 # Backend ignores
 urservice-backend/venv/
 urservice-backend/.env*
+!urservice-backend/.env*.example
 **/__pycache__/
 *.pyc
 urservice-backend/.pytest_cache/
