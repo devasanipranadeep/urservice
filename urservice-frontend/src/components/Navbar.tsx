@@ -46,11 +46,25 @@ export default function Navbar({ activePage }: NavbarProps) {
       e.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (typeof window !== 'undefined') {
-        if (window.location.hash) {
-          window.history.pushState(null, '', '/');
-        }
+        window.history.pushState(null, '', '/');
         setCurrentHash('');
       }
+    }
+  };
+
+  const handleHowItWorksClick = (e: React.MouseEvent) => {
+    if (pathname === '/') {
+      e.preventDefault();
+      const el = document.getElementById('how-it-works');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', '/#how-it-works');
+        setCurrentHash('#how-it-works');
+      }
+    } else {
+      setCurrentHash('#how-it-works');
     }
   };
 
@@ -212,7 +226,7 @@ export default function Navbar({ activePage }: NavbarProps) {
             </Link>
             <Link
               href="/#how-it-works"
-              onClick={() => setCurrentHash('#how-it-works')}
+              onClick={handleHowItWorksClick}
               className={`transition-colors ${
                 isCurrent('/#how-it-works', 'how-it-works') ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -479,9 +493,9 @@ export default function Navbar({ activePage }: NavbarProps) {
             </Link>
             <Link
               href="/#how-it-works"
-              onClick={() => {
+              onClick={(e) => {
                 setIsMobileMenuOpen(false);
-                setCurrentHash('#how-it-works');
+                handleHowItWorksClick(e);
               }}
               className={`block px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 isCurrent('/#how-it-works', 'how-it-works')
