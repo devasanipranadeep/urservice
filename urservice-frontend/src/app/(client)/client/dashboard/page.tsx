@@ -103,6 +103,9 @@ function ClientDashboardContent() {
       if (profileData.profile_photo_url) {
         const photoRes = await apiClient.get<{ signedUrl: string | null }>('/api/profiles/me/photo-url');
         setSignedPhotoUrl(photoRes.signedUrl);
+        if (photoRes.signedUrl && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('profile-updated', { detail: { signedUrl: photoRes.signedUrl } }));
+        }
       }
 
       // 3. Fetch Bookings
@@ -269,6 +272,9 @@ function ClientDashboardContent() {
           ...profile,
           profile_photo_url: res.profile_photo_url,
         });
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('profile-updated', { detail: { signedUrl: res.signedUrl } }));
       }
     } catch (err) {
       setUploadError((err as Error).message || 'Failed to upload photo.');
