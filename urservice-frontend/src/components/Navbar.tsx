@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, User, LogOut, LayoutDashboard, Calendar, ShieldCheck } from 'lucide-react';
 import { useSession } from '../hooks/use-session';
 import { supabase } from '../lib/supabase';
@@ -15,56 +15,59 @@ interface NavbarProps {
 
 export default function Navbar({ activePage }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, isAuthenticated, isLoading } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
-  const [currentHash, setCurrentHash] = useState<string>('');
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const userRole = user?.user_metadata?.role;
 
-  // Track window.location.hash for in-page anchors like #how-it-works
+  // Clean any hash from the URL so address bar is always clean
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setCurrentHash(window.location.hash);
-      const updateHash = () => {
-        setCurrentHash(window.location.hash);
-      };
-      window.addEventListener('hashchange', updateHash);
-      window.addEventListener('popstate', updateHash);
-      return () => {
-        window.removeEventListener('hashchange', updateHash);
-        window.removeEventListener('popstate', updateHash);
-      };
+    if (typeof window !== 'undefined' && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-  }, []);
+  }, [pathname]);
+
+  // Handle cross-page scrolling to how-it-works section without putting # in the URL
+  useEffect(() => {
+    if (typeof window !== 'undefined' && pathname === '/') {
+      const target = sessionStorage.getItem('scroll_to_section');
+      if (target) {
+        sessionStorage.removeItem('scroll_to_section');
+        setTimeout(() => {
+          document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    }
+  }, [pathname]);
 
   const handleHomeClick = (e: React.MouseEvent) => {
     if (pathname === '/') {
       e.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (typeof window !== 'undefined') {
-        window.history.pushState(null, '', '/');
-        setCurrentHash('');
+      if (typeof window !== 'undefined' && window.location.hash) {
+        window.history.replaceState(null, '', '/');
       }
     }
   };
 
   const handleHowItWorksClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (pathname === '/') {
-      e.preventDefault();
       const el = document.getElementById('how-it-works');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
       }
-      if (typeof window !== 'undefined') {
-        window.history.pushState(null, '', '/#how-it-works');
-        setCurrentHash('#how-it-works');
+      if (typeof window !== 'undefined' && window.location.hash) {
+        window.history.replaceState(null, '', '/');
       }
     } else {
-      setCurrentHash('#how-it-works');
+      sessionStorage.setItem('scroll_to_section', 'how-it-works');
+      router.push('/');
     }
   };
 
@@ -173,13 +176,8 @@ export default function Navbar({ activePage }: NavbarProps) {
   };
 
   const isCurrent = (path: string, pageKey?: string) => {
-    if (pageKey === 'how-it-works') {
-      return pathname === '/' && currentHash === '#how-it-works';
-    }
-    if (pageKey === 'home' || path === '/') {
-      return pathname === '/' && currentHash !== '#how-it-works';
-    }
     if (pageKey && activePage === pageKey) return true;
+    if (path === '/' && pathname === '/') return true;
     if (path !== '/' && pathname.startsWith(path)) return true;
     return false;
   };
@@ -224,15 +222,15 @@ export default function Navbar({ activePage }: NavbarProps) {
             >
               Services
             </Link>
-            <Link
-              href="/#how-it-works"
+            <button
+              type="button"
               onClick={handleHowItWorksClick}
-              className={`transition-colors ${
-                isCurrent('/#how-it-works', 'how-it-works') ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
+              className={`transition-colors cursor-pointer ${
+                activePage === 'how-it-works' ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               How it Works
-            </Link>
+            </button>
           </div>
 
           {/* Desktop Right Actions */}
@@ -491,20 +489,20 @@ export default function Navbar({ activePage }: NavbarProps) {
             >
               Services
             </Link>
-            <Link
-              href="/#how-it-works"
+            <button
+              type="button"
               onClick={(e) => {
                 setIsMobileMenuOpen(false);
                 handleHowItWorksClick(e);
               }}
-              className={`block px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                isCurrent('/#how-it-works', 'how-it-works')
+              className={`block w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                activePage === 'how-it-works'
                   ? 'bg-indigo-50 text-indigo-600 font-bold'
                   : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
               How it Works
-            </Link>
+            </button>
           </div>
 
           <div className="border-t border-slate-100 pt-3 space-y-2">
