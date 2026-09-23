@@ -20,9 +20,39 @@ export default function Navbar({ activePage }: NavbarProps) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
+  const [currentHash, setCurrentHash] = useState<string>('');
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const userRole = user?.user_metadata?.role;
+
+  // Track window.location.hash for in-page anchors like #how-it-works
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentHash(window.location.hash);
+      const updateHash = () => {
+        setCurrentHash(window.location.hash);
+      };
+      window.addEventListener('hashchange', updateHash);
+      window.addEventListener('popstate', updateHash);
+      return () => {
+        window.removeEventListener('hashchange', updateHash);
+        window.removeEventListener('popstate', updateHash);
+      };
+    }
+  }, []);
+
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (typeof window !== 'undefined') {
+        if (window.location.hash) {
+          window.history.pushState(null, '', '/');
+        }
+        setCurrentHash('');
+      }
+    }
+  };
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -129,8 +159,13 @@ export default function Navbar({ activePage }: NavbarProps) {
   };
 
   const isCurrent = (path: string, pageKey?: string) => {
+    if (pageKey === 'how-it-works') {
+      return pathname === '/' && currentHash === '#how-it-works';
+    }
+    if (pageKey === 'home' || path === '/') {
+      return pathname === '/' && currentHash !== '#how-it-works';
+    }
     if (pageKey && activePage === pageKey) return true;
-    if (path === '/' && pathname === '/') return true;
     if (path !== '/' && pathname.startsWith(path)) return true;
     return false;
   };
@@ -142,12 +177,7 @@ export default function Navbar({ activePage }: NavbarProps) {
           {/* Logo */}
           <Link
             href="/"
-            onClick={(e) => {
-              if (pathname === '/') {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
+            onClick={handleHomeClick}
             className="flex items-center gap-2 group shrink-0"
           >
             <img
@@ -165,12 +195,7 @@ export default function Navbar({ activePage }: NavbarProps) {
           <div className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-semibold">
             <Link
               href="/"
-              onClick={(e) => {
-                if (pathname === '/') {
-                  e.preventDefault();
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-              }}
+              onClick={handleHomeClick}
               className={`transition-colors ${
                 isCurrent('/', 'home') ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -187,6 +212,7 @@ export default function Navbar({ activePage }: NavbarProps) {
             </Link>
             <Link
               href="/#how-it-works"
+              onClick={() => setCurrentHash('#how-it-works')}
               className={`transition-colors ${
                 isCurrent('/#how-it-works', 'how-it-works') ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -428,11 +454,9 @@ export default function Navbar({ activePage }: NavbarProps) {
           <div className="space-y-1">
             <Link
               href="/"
-              onClick={() => {
+              onClick={(e) => {
                 setIsMobileMenuOpen(false);
-                if (pathname === '/') {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
+                handleHomeClick(e);
               }}
               className={`block px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 isCurrent('/', 'home')
@@ -455,7 +479,10 @@ export default function Navbar({ activePage }: NavbarProps) {
             </Link>
             <Link
               href="/#how-it-works"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setCurrentHash('#how-it-works');
+              }}
               className={`block px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                 isCurrent('/#how-it-works', 'how-it-works')
                   ? 'bg-indigo-50 text-indigo-600 font-bold'
