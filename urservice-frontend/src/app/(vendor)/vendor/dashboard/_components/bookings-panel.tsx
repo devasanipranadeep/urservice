@@ -337,13 +337,15 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
 
                 {/* Actions & Status Section */}
                 <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 self-end md:self-center">
-                  <span
-                    className={`px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider border ${getStatusBadgeClass(
-                      booking.status
-                    )}`}
-                  >
-                    {booking.status}
-                  </span>
+                  {!isPending && (
+                    <span
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider border ${getStatusBadgeClass(
+                        booking.status
+                      )}`}
+                    >
+                      {booking.status}
+                    </span>
+                  )}
 
                   {!isReadOnly && (
                     <div className="flex items-center gap-2">
