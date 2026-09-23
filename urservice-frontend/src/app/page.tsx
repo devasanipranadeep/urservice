@@ -1187,6 +1187,7 @@ function HomeContent() {
           <div className="pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
             <p>&copy; {new Date().getFullYear()} UrService. All rights reserved.</p>
             <div className="flex items-center gap-6">
+              <Link href="/how-it-works" className="hover:text-indigo-600 transition-colors">How it Works</Link>
               <Link href="/privacy" className="hover:text-indigo-600 transition-colors">Privacy Policy</Link>
               <Link href="/terms" className="hover:text-indigo-600 transition-colors">Terms of Service</Link>
               <Link href="/terms" className="hover:text-indigo-600 transition-colors">Security Disclaimers</Link>

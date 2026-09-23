@@ -32,19 +32,6 @@ export default function Navbar({ activePage }: NavbarProps) {
     }
   }, [pathname]);
 
-  // Handle cross-page scrolling to how-it-works section without putting # in the URL
-  useEffect(() => {
-    if (typeof window !== 'undefined' && pathname === '/') {
-      const target = sessionStorage.getItem('scroll_to_section');
-      if (target) {
-        sessionStorage.removeItem('scroll_to_section');
-        setTimeout(() => {
-          document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
-      }
-    }
-  }, [pathname]);
-
   const handleHomeClick = (e: React.MouseEvent) => {
     if (pathname === '/') {
       e.preventDefault();
@@ -52,22 +39,6 @@ export default function Navbar({ activePage }: NavbarProps) {
       if (typeof window !== 'undefined' && window.location.hash) {
         window.history.replaceState(null, '', '/');
       }
-    }
-  };
-
-  const handleHowItWorksClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (pathname === '/') {
-      const el = document.getElementById('how-it-works');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-      if (typeof window !== 'undefined' && window.location.hash) {
-        window.history.replaceState(null, '', '/');
-      }
-    } else {
-      sessionStorage.setItem('scroll_to_section', 'how-it-works');
-      router.push('/');
     }
   };
 
@@ -222,15 +193,14 @@ export default function Navbar({ activePage }: NavbarProps) {
             >
               Services
             </Link>
-            <button
-              type="button"
-              onClick={handleHowItWorksClick}
-              className={`transition-colors cursor-pointer ${
-                activePage === 'how-it-works' ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
+            <Link
+              href="/how-it-works"
+              className={`transition-colors ${
+                isCurrent('/how-it-works', 'how-it-works') ? 'text-indigo-600 font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               How it Works
-            </button>
+            </Link>
           </div>
 
           {/* Desktop Right Actions */}
@@ -489,20 +459,17 @@ export default function Navbar({ activePage }: NavbarProps) {
             >
               Services
             </Link>
-            <button
-              type="button"
-              onClick={(e) => {
-                setIsMobileMenuOpen(false);
-                handleHowItWorksClick(e);
-              }}
-              className={`block w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-                activePage === 'how-it-works'
+            <Link
+              href="/how-it-works"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`block px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                isCurrent('/how-it-works', 'how-it-works')
                   ? 'bg-indigo-50 text-indigo-600 font-bold'
                   : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
               How it Works
-            </button>
+            </Link>
           </div>
 
           <div className="border-t border-slate-100 pt-3 space-y-2">
