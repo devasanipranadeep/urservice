@@ -277,12 +277,14 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
       ) : (
         <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
           {bookings.map((booking) => {
-            const isPending = booking.status.toLowerCase() === 'requested';
-            const isConfirmed = booking.status.toLowerCase() === 'confirmed';
-            const isInProgress = booking.status.toLowerCase() === 'in_progress';
+            const rawStatus = (booking.status || '').trim();
+            const normalizedStatus = rawStatus.toLowerCase();
+            const isPending = normalizedStatus === 'requested' || normalizedStatus === 'pending' || normalizedStatus.includes('request');
+            const isConfirmed = normalizedStatus === 'confirmed';
+            const isInProgress = normalizedStatus === 'in_progress';
             const isCancellable =
-              booking.status.toLowerCase() !== 'cancelled' &&
-              booking.status.toLowerCase() !== 'completed';
+              normalizedStatus !== 'cancelled' &&
+              normalizedStatus !== 'completed';
 
             return (
               <div
@@ -337,13 +339,13 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
 
                 {/* Actions & Status Section */}
                 <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 self-end md:self-center">
-                  {!isPending && (
+                  {!isPending && !normalizedStatus.includes('request') && (
                     <span
                       className={`px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider border ${getStatusBadgeClass(
                         booking.status
                       )}`}
                     >
-                      {booking.status}
+                      {rawStatus.replace('_', ' ')}
                     </span>
                   )}
 
