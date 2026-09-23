@@ -33,15 +33,40 @@ export default function AnalyticsPanel() {
       fetchAnalytics();
     };
     window.addEventListener('bookings-updated', handleRefresh);
+    window.addEventListener('refresh-vendor-bookings', handleRefresh);
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchAnalytics();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('urservice_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'booking-created' || event.data?.type === 'booking-updated') {
+            fetchAnalytics();
+          }
+        };
+      }
+    } catch (_) {}
 
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchAnalytics();
-    }, 20000);
+    }, 10000);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('bookings-updated', handleRefresh);
+      window.removeEventListener('refresh-vendor-bookings', handleRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      if (bc) bc.close();
     };
   }, []);
 

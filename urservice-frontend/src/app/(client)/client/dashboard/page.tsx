@@ -102,19 +102,44 @@ function ClientDashboardContent() {
   useEffect(() => {
     fetchDashboardData();
 
-    // Live background polling for client bookings every 10 seconds
+    // Live background polling for client bookings every 5 seconds
     const interval = setInterval(() => {
       fetchBookingsSilent();
-    }, 10000);
+    }, 5000);
 
     const handleBookingsUpdated = () => {
       fetchBookingsSilent();
     };
     window.addEventListener('bookings-updated', handleBookingsUpdated);
+    window.addEventListener('refresh-client-bookings', handleBookingsUpdated);
+
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchBookingsSilent();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('urservice_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'booking-created' || event.data?.type === 'booking-updated') {
+            fetchBookingsSilent();
+          }
+        };
+      }
+    } catch (_) {}
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('bookings-updated', handleBookingsUpdated);
+      window.removeEventListener('refresh-client-bookings', handleBookingsUpdated);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      if (bc) bc.close();
     };
   }, []);
 
@@ -255,6 +280,15 @@ function ClientDashboardContent() {
       window.dispatchEvent(new Event('bookings-updated'));
       window.dispatchEvent(new Event('refresh-notifications'));
       window.dispatchEvent(new Event('refresh-vendor-bookings'));
+
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('urservice_sync_channel');
+          bc.postMessage({ type: 'booking-updated', booking_id: rescheduleBookingId });
+          bc.close();
+        }
+      } catch (_) {}
+
       fetchDashboardData();
     } catch (err: any) {
       setRescheduleError(err instanceof ApiError ? err.detail : 'Failed to reschedule booking.');
@@ -273,6 +307,15 @@ function ClientDashboardContent() {
       window.dispatchEvent(new Event('bookings-updated'));
       window.dispatchEvent(new Event('refresh-notifications'));
       window.dispatchEvent(new Event('refresh-vendor-bookings'));
+
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('urservice_sync_channel');
+          bc.postMessage({ type: 'booking-updated', booking_id: bookingId, status: 'cancelled' });
+          bc.close();
+        }
+      } catch (_) {}
+
       fetchDashboardData();
     } catch (err: any) {
       alert(err instanceof ApiError ? err.detail : 'Failed to cancel booking.');

@@ -584,51 +584,29 @@ function HomeContent() {
     setIsSubmittingBooking(true);
     setBookingError(null);
     try {
-      let serviceId = null;
-      try {
-        const sRes = await supabase
-          .from('services')
-          .select('id')
-          .eq('vendor_id', bookingVendor.id)
-          .eq('is_active', true)
-          .limit(1);
-        if (sRes.data && sRes.data.length > 0) {
-          serviceId = sRes.data[0].id;
-        }
-      } catch (err) {
-        // service query failed
-      }
-
-      if (!serviceId) {
-        const { data: newService, error: serviceErr } = await supabase
-          .from('services')
-          .insert({
-            vendor_id: bookingVendor.id,
-            name: selectedSubcategory?.name || 'General Service',
-            description: `Standard ${selectedSubcategory?.name || 'General'} service`,
-            price: 1000,
-            is_active: true
-          })
-          .select()
-          .single();
-        if (serviceErr) throw serviceErr;
-        serviceId = newService.id;
-      }
-
-      // 2. Submit booking request to backend
+      // 1. Submit booking request directly to backend (service resolution & notifications run server-side in ms)
       await apiClient.post('/api/bookings', {
         vendor_id: bookingVendor.id,
-        service_id: serviceId,
+        service_name: selectedSubcategory?.name || 'General Service',
         scheduled_at: new Date(bookingDateTime).toISOString(),
       });
 
       setBookingSuccess(true);
 
-      // Trigger realtime refresh on notification bell and open dashboards
+      // Trigger realtime refresh on local window & all open browser tabs/windows
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('bookings-updated'));
         window.dispatchEvent(new Event('refresh-notifications'));
         window.dispatchEvent(new Event('refresh-vendor-bookings'));
+
+        // Broadcast to other open browser tabs/windows (e.g. vendor dashboard in another tab)
+        try {
+          if ('BroadcastChannel' in window) {
+            const bc = new BroadcastChannel('urservice_sync_channel');
+            bc.postMessage({ type: 'booking-created', vendor_id: bookingVendor.id, timestamp: Date.now() });
+            bc.close();
+          }
+        } catch (_) {}
       }
     } catch (err) {
       setBookingError((err as Error).message || 'Failed to request booking. Please try again.');

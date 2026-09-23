@@ -147,15 +147,16 @@ async function request<T>(
     if (existingPromise) {
       return existingPromise as Promise<T>;
     }
+  } else {
+    // Clear stale cached response when a bypass is requested
+    responseCache.delete(cacheKey);
   }
 
   // Execute request with in-flight tracking
   const requestPromise = executeRequest<T>(method, path, body, options)
     .then((result) => {
-      if (!options?.noCache) {
-        const ttl = getCacheTtl(path);
-        responseCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
-      }
+      const ttl = getCacheTtl(path);
+      responseCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
       inFlightRequests.delete(cacheKey);
       return result;
     })

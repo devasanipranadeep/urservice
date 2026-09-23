@@ -11,13 +11,16 @@ from app.db.supabase_client import supabase
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
+import threading
+
 class BookingUpdate(BaseModel):
     status: Optional[str] = None
     scheduled_at: Optional[datetime] = None
 
 class BookingCreate(BaseModel):
     vendor_id: UUID
-    service_id: UUID
+    service_id: Optional[UUID] = None
+    service_name: Optional[str] = None
     scheduled_at: datetime
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -26,12 +29,33 @@ def create_booking(
     current_user: CurrentUser = Depends(require_role("client"))
 ):
     """
-    Create a new booking.
+    Create a new booking instantly with automatic service resolution and background notifications.
     """
+    # 1. Resolve or create service_id if not supplied or doesn't exist
+    resolved_service_id = data.service_id
+    if not resolved_service_id:
+        try:
+            s_res = supabase.table("services").select("id").eq("vendor_id", str(data.vendor_id)).eq("is_active", True).limit(1).execute()
+            if s_res.data and len(s_res.data) > 0:
+                resolved_service_id = UUID(s_res.data[0]["id"])
+            else:
+                # Create a default service record for this vendor using service role (bypasses RLS)
+                service_insert = supabase.table("services").insert({
+                    "vendor_id": str(data.vendor_id),
+                    "name": data.service_name or "General Service",
+                    "description": f"Standard {data.service_name or 'General'} Service",
+                    "price": 500,
+                    "is_active": True
+                }).execute()
+                if service_insert.data:
+                    resolved_service_id = UUID(service_insert.data[0]["id"])
+        except Exception:
+            pass
+
     booking_data = {
         "client_id": str(current_user.id),
         "vendor_id": str(data.vendor_id),
-        "service_id": str(data.service_id),
+        "service_id": str(resolved_service_id) if resolved_service_id else None,
         "status": "requested",
         "scheduled_at": data.scheduled_at.isoformat()
     }
@@ -44,37 +68,41 @@ def create_booking(
         )
         
     booking = response.data[0]
-    
-    # Retrieve vendor info
-    vendor_res = supabase.table("vendors").select("user_id, business_name").eq("id", str(data.vendor_id)).execute()
-    vendor_info = vendor_res.data[0] if vendor_res.data else None
-    
-    # Create server-side notifications
-    try:
-        from app.services import notification_service
-        # Client notification
-        client_msg = f"Your booking request with {vendor_info['business_name'] if vendor_info else 'the vendor'} has been sent."
-        notification_service.create_notification(
-            user_id=current_user.id,
-            title="Booking Requested",
-            message=client_msg
-        )
-        
-        # Vendor notification
-        if vendor_info and vendor_info.get("user_id"):
-            client_name = "A client"
-            profile_res = supabase.table("profiles").select("full_name").eq("user_id", str(current_user.id)).execute()
-            if profile_res.data:
-                client_name = profile_res.data[0].get("full_name") or "A client"
-                
-            vendor_msg = f"{client_name} has requested an appointment."
+
+    # Dispatch notifications and emails in background thread for instant response
+    def _dispatch_notifications_async():
+        try:
+            from app.services import notification_service
+            vendor_res = supabase.table("vendors").select("user_id, business_name").eq("id", str(data.vendor_id)).execute()
+            vendor_info = vendor_res.data[0] if vendor_res.data else None
+
+            # Client notification
+            client_msg = f"Your booking request with {vendor_info['business_name'] if vendor_info else 'the vendor'} has been sent."
             notification_service.create_notification(
-                user_id=UUID(vendor_info["user_id"]),
-                title="New Booking Request",
-                message=vendor_msg
+                user_id=current_user.id,
+                title="Booking Requested",
+                message=client_msg
             )
-    except Exception:
-        pass
+            
+            # Vendor notification
+            if vendor_info and vendor_info.get("user_id"):
+                client_name = "A client"
+                profile_res = supabase.table("profiles").select("full_name").eq("user_id", str(current_user.id)).execute()
+                if profile_res.data:
+                    client_name = profile_res.data[0].get("full_name") or "A client"
+                    
+                vendor_msg = f"{client_name} has requested an appointment."
+                notification_service.create_notification(
+                    user_id=UUID(vendor_info["user_id"]),
+                    title="New Booking Request",
+                    message=vendor_msg
+                )
+        except Exception:
+            pass
+
+    notif_thread = threading.Thread(target=_dispatch_notifications_async)
+    notif_thread.daemon = True
+    notif_thread.start()
         
     return booking
 
@@ -83,7 +111,7 @@ def get_my_bookings(current_user: CurrentUser = Depends(require_role("client")))
     """
     Fetch all bookings for the authenticated client.
     """
-    res = supabase.table("bookings").select("*").eq("client_id", str(current_user.id)).execute()
+    res = supabase.table("bookings").select("*").eq("client_id", str(current_user.id)).order("created_at", desc=True).execute()
     bookings_data = res.data or []
     
     if not bookings_data:
@@ -142,7 +170,7 @@ def get_vendor_bookings(current_user: CurrentUser = Depends(require_role("vendor
         return []
 
     # Fetch bookings
-    bookings_res = supabase.table("bookings").select("*").eq("vendor_id", vendor["id"]).execute()
+    bookings_res = supabase.table("bookings").select("*").eq("vendor_id", vendor["id"]).order("created_at", desc=True).execute()
     bookings_data = bookings_res.data or []
     
     if not bookings_data:

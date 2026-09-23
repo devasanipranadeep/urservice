@@ -83,6 +83,15 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
       );
       window.dispatchEvent(new Event('bookings-updated'));
       window.dispatchEvent(new Event('refresh-notifications'));
+
+      // Broadcast update across browser tabs
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('urservice_sync_channel');
+          bc.postMessage({ type: 'booking-updated', booking_id: bookingId, status: updated.status });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err: any) {
       setError(err instanceof ApiError ? err.detail : 'Failed to update booking status.');
     }
@@ -114,6 +123,15 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
       setReschedulingId(null);
       window.dispatchEvent(new Event('bookings-updated'));
       window.dispatchEvent(new Event('refresh-notifications'));
+
+      // Broadcast reschedule across browser tabs
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('urservice_sync_channel');
+          bc.postMessage({ type: 'booking-updated', booking_id: bookingId, scheduled_at: updated.scheduled_at });
+          bc.close();
+        }
+      } catch (_) {}
     } catch (err: any) {
       setError(err instanceof ApiError ? err.detail : 'Failed to reschedule booking.');
     }
@@ -122,13 +140,35 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
   useEffect(() => {
     fetchBookings(false);
 
-    // 1. Live background polling every 8 seconds (when tab is active)
+    // 1. Live background polling every 4 seconds
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchBookings(true);
-    }, 8000);
+    }, 4000);
 
-    // 2. Supabase Realtime channel listener for instant push updates
+    // 2. Immediate refresh when vendor tab gains focus or becomes visible
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchBookings(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    // 3. Instant cross-tab sync via BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('urservice_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'booking-created' || event.data?.type === 'booking-updated') {
+            fetchBookings(true);
+          }
+        };
+      }
+    } catch (_) {}
+
+    // 4. Supabase Realtime channel listener for instant push updates
     const channel = supabase
       .channel('vendor-live-bookings')
       .on(
@@ -140,16 +180,21 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
       )
       .subscribe();
 
-    // 3. Custom trigger listener (e.g. from notifications or page actions)
+    // 5. Custom trigger listeners within current window
     const handleCustomTrigger = () => {
       fetchBookings(true);
     };
     window.addEventListener('refresh-vendor-bookings', handleCustomTrigger);
+    window.addEventListener('bookings-updated', handleCustomTrigger);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      if (bc) bc.close();
       supabase.removeChannel(channel);
       window.removeEventListener('refresh-vendor-bookings', handleCustomTrigger);
+      window.removeEventListener('bookings-updated', handleCustomTrigger);
     };
   }, [fetchBookings]);
 
