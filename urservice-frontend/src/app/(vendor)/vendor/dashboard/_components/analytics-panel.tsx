@@ -19,7 +19,7 @@ export default function AnalyticsPanel() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const stats = await apiClient.get<AnalyticsData>('/api/vendors/me/analytics');
+        const stats = await apiClient.get<AnalyticsData>('/api/vendors/me/analytics', { noCache: true });
         setData(stats);
       } catch (err: any) {
         setError(err instanceof ApiError ? err.detail : 'Failed to load analytics.');
@@ -28,6 +28,21 @@ export default function AnalyticsPanel() {
       }
     };
     fetchAnalytics();
+
+    const handleRefresh = () => {
+      fetchAnalytics();
+    };
+    window.addEventListener('bookings-updated', handleRefresh);
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchAnalytics();
+    }, 20000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('bookings-updated', handleRefresh);
+    };
   }, []);
 
   if (loading) {

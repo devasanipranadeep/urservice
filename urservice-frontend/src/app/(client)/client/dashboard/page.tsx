@@ -83,8 +83,39 @@ function ClientDashboardContent() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
+  const isFetchingBookingsRef = useRef(false);
+
+  const fetchBookingsSilent = async () => {
+    if (isFetchingBookingsRef.current) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    isFetchingBookingsRef.current = true;
+    try {
+      const data = await apiClient.get<Booking[]>('/api/bookings/me', { noCache: true });
+      setBookings(data);
+    } catch {
+      // silent background refresh
+    } finally {
+      isFetchingBookingsRef.current = false;
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
+
+    // Live background polling for client bookings every 10 seconds
+    const interval = setInterval(() => {
+      fetchBookingsSilent();
+    }, 10000);
+
+    const handleBookingsUpdated = () => {
+      fetchBookingsSilent();
+    };
+    window.addEventListener('bookings-updated', handleBookingsUpdated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('bookings-updated', handleBookingsUpdated);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -221,6 +252,9 @@ function ClientDashboardContent() {
       });
       alert('Booking rescheduled successfully.');
       setIsRescheduleOpen(false);
+      window.dispatchEvent(new Event('bookings-updated'));
+      window.dispatchEvent(new Event('refresh-notifications'));
+      window.dispatchEvent(new Event('refresh-vendor-bookings'));
       fetchDashboardData();
     } catch (err: any) {
       setRescheduleError(err instanceof ApiError ? err.detail : 'Failed to reschedule booking.');
@@ -236,6 +270,9 @@ function ClientDashboardContent() {
         status: 'cancelled',
       });
       alert('Booking cancelled successfully.');
+      window.dispatchEvent(new Event('bookings-updated'));
+      window.dispatchEvent(new Event('refresh-notifications'));
+      window.dispatchEvent(new Event('refresh-vendor-bookings'));
       fetchDashboardData();
     } catch (err: any) {
       alert(err instanceof ApiError ? err.detail : 'Failed to cancel booking.');

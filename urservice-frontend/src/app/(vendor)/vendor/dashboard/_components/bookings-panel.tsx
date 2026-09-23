@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Calendar, User, Phone, Mail, Award } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Calendar, User, Phone, Mail, Award, RefreshCw, CheckCircle2, Clock } from 'lucide-react';
 import { apiClient, ApiError } from '../../../../../lib/api-client';
+import { supabase } from '../../../../../lib/supabase';
 
 interface ServiceDetail {
   id: string;
@@ -29,7 +30,6 @@ interface Booking {
   client?: BookingClientDetail | null;
 }
 
-// In case the import structure changes or client shape differs
 type BookingClientDetail = ClientDetail;
 
 interface BookingsPanelProps {
@@ -39,9 +39,39 @@ interface BookingsPanelProps {
 export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [newDateTime, setNewDateTime] = useState('');
+  const isFetchingRef = useRef(false);
+
+  const fetchBookings = useCallback(async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (!silent) setLoading(true);
+    else setIsRefreshing(true);
+    setError(null);
+
+    try {
+      const list = await apiClient.get<Booking[]>('/api/bookings/vendor/me', { noCache: true });
+      setBookings((prev) => {
+        // If new bookings arrived during silent background update, broadcast events
+        if (silent && list.length > prev.length) {
+          window.dispatchEvent(new Event('bookings-updated'));
+          window.dispatchEvent(new Event('refresh-notifications'));
+        }
+        return list;
+      });
+    } catch (err: any) {
+      if (!silent) {
+        setError(err instanceof ApiError ? err.detail : 'Failed to fetch bookings.');
+      }
+    } finally {
+      if (!silent) setLoading(false);
+      setIsRefreshing(false);
+      isFetchingRef.current = false;
+    }
+  }, []);
 
   const handleUpdateStatus = async (bookingId: string, newStatus: string) => {
     try {
@@ -51,6 +81,8 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, status: updated.status } : b))
       );
+      window.dispatchEvent(new Event('bookings-updated'));
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (err: any) {
       setError(err instanceof ApiError ? err.detail : 'Failed to update booking status.');
     }
@@ -61,7 +93,7 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
     try {
       const d = new Date(currentVal);
       const tzOffset = d.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(d.getTime() - tzOffset)).toISOString().slice(0, 16);
+      const localISOTime = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
       setNewDateTime(localISOTime);
     } catch {
       setNewDateTime('');
@@ -80,33 +112,55 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
         )
       );
       setReschedulingId(null);
+      window.dispatchEvent(new Event('bookings-updated'));
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (err: any) {
       setError(err instanceof ApiError ? err.detail : 'Failed to reschedule booking.');
     }
   };
 
   useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const list = await apiClient.get<Booking[]>('/api/bookings/vendor/me');
-        setBookings(list);
-      } catch (err: any) {
-        setError(err instanceof ApiError ? err.detail : 'Failed to fetch bookings.');
-      } finally {
-        setLoading(false);
-      }
+    fetchBookings(false);
+
+    // 1. Live background polling every 8 seconds (when tab is active)
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchBookings(true);
+    }, 8000);
+
+    // 2. Supabase Realtime channel listener for instant push updates
+    const channel = supabase
+      .channel('vendor-live-bookings')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        () => {
+          fetchBookings(true);
+        }
+      )
+      .subscribe();
+
+    // 3. Custom trigger listener (e.g. from notifications or page actions)
+    const handleCustomTrigger = () => {
+      fetchBookings(true);
     };
-    fetchBookings();
-  }, []);
+    window.addEventListener('refresh-vendor-bookings', handleCustomTrigger);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+      window.removeEventListener('refresh-vendor-bookings', handleCustomTrigger);
+    };
+  }, [fetchBookings]);
 
   const getStatusBadgeClass = (status: string) => {
     switch (status.toLowerCase()) {
       case 'requested':
         return 'bg-amber-50 text-amber-700 border border-amber-200';
       case 'confirmed':
-        return 'bg-indigo-50 text-indigo-750 border border-indigo-200';
+        return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
       case 'in_progress':
-        return 'bg-blue-50 text-blue-750 border border-blue-200';
+        return 'bg-blue-50 text-blue-700 border border-blue-200';
       case 'completed':
         return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
       case 'cancelled':
@@ -148,9 +202,19 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
           <Calendar className="w-5 h-5 text-indigo-600" />
           <span>Job Bookings</span>
         </h3>
-        <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
-          {bookings.length} Total
-        </span>
+        <div className="flex items-center space-x-2.5">
+          <button
+            onClick={() => fetchBookings(true)}
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+            title="Refresh bookings list"
+            aria-label="Refresh bookings"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
+          </button>
+          <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+            {bookings.length} Total
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -161,37 +225,51 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
 
       {bookings.length === 0 ? (
         <div className="text-center py-12 space-y-3 bg-slate-50 border border-slate-200 rounded-xl">
-          <Calendar className="w-12 h-12 text-slate-500 mx-auto" />
-          <p className="text-slate-500 text-sm font-medium">No bookings scheduled yet</p>
-          <p className="text-slate-500 text-xs">When clients book your services, they will appear here.</p>
+          <Calendar className="w-12 h-12 text-slate-400 mx-auto" />
+          <p className="text-slate-700 text-sm font-semibold">No bookings scheduled yet</p>
+          <p className="text-slate-400 text-xs">When clients book your services, they will appear here automatically.</p>
         </div>
       ) : (
-        <div className="space-y-4 max-h-[340px] overflow-y-auto pr-1">
+        <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
           {bookings.map((booking) => {
             const isPending = booking.status.toLowerCase() === 'requested';
-            const isCancellable = booking.status.toLowerCase() !== 'cancelled' && booking.status.toLowerCase() !== 'completed';
-            
+            const isConfirmed = booking.status.toLowerCase() === 'confirmed';
+            const isInProgress = booking.status.toLowerCase() === 'in_progress';
+            const isCancellable =
+              booking.status.toLowerCase() !== 'cancelled' &&
+              booking.status.toLowerCase() !== 'completed';
+
             return (
               <div
                 key={booking.id}
-                className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-slate-700 text-sm"
+                className="p-4 bg-slate-50 hover:bg-slate-100/60 border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-slate-700 text-sm transition-all"
               >
                 {/* Details Section */}
                 <div className="space-y-2 flex-1">
                   <div className="font-semibold text-slate-800 text-sm md:text-base flex items-center space-x-1.5">
                     <Award className="w-4 h-4 text-indigo-600 shrink-0" />
                     <span>{booking.service?.name || 'Service Listing'}</span>
+                    {isPending && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                        New Request
+                      </span>
+                    )}
                   </div>
-                  
+
                   <div className="text-xs text-indigo-600 font-medium space-y-1">
                     <div>
-                      Client: <span className="text-slate-700">{booking.client?.full_name || 'Client'}</span>
+                      Client:{' '}
+                      <span className="text-slate-700 font-semibold">
+                        {booking.client?.full_name || 'Client'}
+                      </span>
                     </div>
                     <div className="text-[11px] text-slate-500 font-normal flex flex-wrap gap-x-3 gap-y-1">
-                      <span className="flex items-center space-x-1">
-                        <Mail className="w-3 h-3 text-slate-400" />
-                        <span>{booking.client?.email}</span>
-                      </span>
+                      {booking.client?.email && (
+                        <span className="flex items-center space-x-1">
+                          <Mail className="w-3 h-3 text-slate-400" />
+                          <span>{booking.client.email}</span>
+                        </span>
+                      )}
                       {booking.client?.phone && (
                         <span className="flex items-center space-x-1">
                           <Phone className="w-3 h-3 text-slate-400" />
@@ -201,11 +279,11 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-400 flex items-center space-x-1.5 pt-1">
+                  <div className="text-[11px] text-slate-500 flex items-center space-x-1.5 pt-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     <span>{formatDate(booking.scheduled_at)}</span>
                     {booking.service?.price && (
-                      <span className="text-slate-600 pl-2 border-l border-slate-200 font-mono font-semibold">
+                      <span className="text-slate-700 pl-2 border-l border-slate-200 font-mono font-semibold">
                         ₹{booking.service.price}
                       </span>
                     )}
@@ -214,7 +292,11 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
 
                 {/* Actions & Status Section */}
                 <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 self-end md:self-center">
-                  <span className={`px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider border ${getStatusBadgeClass(booking.status)}`}>
+                  <span
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider border ${getStatusBadgeClass(
+                      booking.status
+                    )}`}
+                  >
                     {booking.status}
                   </span>
 
@@ -249,7 +331,7 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
                             <>
                               <button
                                 onClick={() => handleUpdateStatus(booking.id, 'confirmed')}
-                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
                               >
                                 Accept
                               </button>
@@ -257,9 +339,26 @@ export default function BookingsPanel({ isReadOnly = false }: BookingsPanelProps
                                 onClick={() => handleUpdateStatus(booking.id, 'cancelled')}
                                 className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
                               >
-                                Reject
+                                Decline
                               </button>
                             </>
+                          )}
+                          {isConfirmed && (
+                            <button
+                              onClick={() => handleUpdateStatus(booking.id, 'in_progress')}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                            >
+                              Start Job
+                            </button>
+                          )}
+                          {isInProgress && (
+                            <button
+                              onClick={() => handleUpdateStatus(booking.id, 'completed')}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer flex items-center space-x-1"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Complete</span>
+                            </button>
                           )}
                           {isCancellable && (
                             <button

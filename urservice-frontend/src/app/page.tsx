@@ -30,6 +30,7 @@ import {
   Clock,
   Zap,
   X,
+  CheckCircle2,
 } from 'lucide-react';
 
 import { apiClient } from '../lib/api-client';
@@ -622,6 +623,13 @@ function HomeContent() {
       });
 
       setBookingSuccess(true);
+
+      // Trigger realtime refresh on notification bell and open dashboards
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bookings-updated'));
+        window.dispatchEvent(new Event('refresh-notifications'));
+        window.dispatchEvent(new Event('refresh-vendor-bookings'));
+      }
     } catch (err) {
       setBookingError((err as Error).message || 'Failed to request booking. Please try again.');
     } finally {
@@ -1354,8 +1362,65 @@ function HomeContent() {
                   )}
 
                   {bookingSuccess ? (
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm text-center">
-                      Appointment successfully requested! You can view and manage this booking in your dashboard.
+                    <div className="space-y-4 py-2 animate-fade-in">
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                          <CheckCircle2 className="w-8 h-8" />
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-900">
+                          Booking Request Confirmed!
+                        </h4>
+                        <p className="text-xs text-slate-500 max-w-sm">
+                          Your appointment request has been transmitted directly to <span className="font-semibold text-slate-700">{bookingVendor.business_name}</span>. You will receive live updates as the provider accepts your request.
+                        </p>
+                      </div>
+
+                      {/* Summary receipt card */}
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                          <span className="text-slate-500 font-medium">Service</span>
+                          <span className="font-bold text-slate-800">{selectedSubcategory?.name || 'General Service'}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                          <span className="text-slate-500 font-medium">Provider</span>
+                          <span className="font-bold text-indigo-600">{bookingVendor.business_name}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                          <span className="text-slate-500 font-medium">Scheduled Time</span>
+                          <span className="font-bold text-slate-800">
+                            {bookingDateTime ? new Date(bookingDateTime).toLocaleString(undefined, {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }) : 'Scheduled'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Initial Status</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            Requested (Pending Acceptance)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                        <Link
+                          href="/client/dashboard?tab=bookings"
+                          className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs text-center transition-all shadow-md shadow-indigo-500/10"
+                        >
+                          View in My Bookings
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={handleCloseSearchModal}
+                          className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl text-xs text-center transition-colors cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <>
