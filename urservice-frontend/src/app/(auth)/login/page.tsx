@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   RefreshCw,
   Sparkles,
-  Lock,
   ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
@@ -450,16 +449,8 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* Link to Admin Login */}
-        <div className="mt-7 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            <Lock className="w-3 h-3 text-slate-400" />
-            Admin Portal
-          </Link>
-
+        {/* Footer Links */}
+        <div className="mt-7 pt-5 border-t border-slate-100 flex items-center justify-center text-xs text-slate-500">
           <Link
             href="/privacy"
             className="text-slate-400 hover:text-slate-600 transition-colors"
