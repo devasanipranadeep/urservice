@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { MapPin, Phone, User, Calendar, LogOut, Check, ArrowRight, ArrowLeft, Upload, FileText, Landmark, Sparkles } from 'lucide-react';
+import { MapPin, Phone, User, Calendar, LogOut, Check, ArrowRight, ArrowLeft, Upload, FileText, Landmark } from 'lucide-react';
 import TermsPrivacyModal from '../../../../components/terms-privacy-modal';
 
 import { sendPhoneOtp, verifyPhoneOtp, formatPhoneNumber } from '../../../../lib/auth';
@@ -1203,30 +1203,8 @@ export default function VendorRegistrationWizard() {
               </div>
             </div>
 
-            {/* Vendor Code of Conduct & Anti-Theft Policy Notice */}
-            <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed mb-3">
-              <p className="font-bold text-amber-950 mb-1">
-                ⚖️ Partner Security & Accountability Notice:
-              </p>
-              Vendors operate as independent service providers. UrService holds zero tolerance for theft or property damage. Any theft or criminal misconduct will result in immediate permanent account suspension and full disclosure of your verified KYC documents, address, and contact information to the client and law enforcement.
-            </div>
-
             {/* Checkboxes Agreements */}
             <div className="space-y-2 border-t border-slate-200 pt-3">
-              <div className="flex items-center justify-between pb-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Legal Agreements</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLegalModalTab('terms');
-                    setLegalModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg cursor-pointer transition-colors"
-                >
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Review & Tick in Pop-up</span>
-                </button>
-              </div>
 
               <div className="flex items-start">
                 <input

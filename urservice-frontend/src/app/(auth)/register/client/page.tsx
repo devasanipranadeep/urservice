@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { sendPhoneOtp, verifyPhoneOtp, formatPhoneNumber } from '../../../../lib/auth';
 import { apiClient } from '../../../../lib/api-client';
-import { ArrowLeft, Phone, ShieldCheck, User, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, ShieldCheck, User, MapPin, RefreshCw } from 'lucide-react';
 import TermsPrivacyModal from '../../../../components/terms-privacy-modal';
 
 export default function ClientRegisterPage() {
@@ -218,18 +218,7 @@ export default function ClientRegisterPage() {
                 >
                   Privacy Policy
                 </button>
-                .{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLegalModalTab('terms');
-                    setLegalModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded ml-1 cursor-pointer transition-colors"
-                >
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Review in pop-up</span>
-                </button>
+                .
               </label>
             </div>
 

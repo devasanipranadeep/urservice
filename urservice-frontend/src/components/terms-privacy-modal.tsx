@@ -1,24 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import {
-  X,
-  CheckCircle2,
-  ShieldCheck,
-  Scale,
-  CreditCard,
-  Ban,
-  Lock,
-  Eye,
-  FileCheck2,
-  AlertTriangle,
-  Building2,
-  HelpCircle,
-  ExternalLink,
-  Sparkles,
-  ArrowRight
-} from 'lucide-react';
+import { X } from 'lucide-react';
 
 export interface TermsPrivacyModalProps {
   isOpen: boolean;
@@ -30,7 +14,6 @@ export interface TermsPrivacyModalProps {
 
 export const termsHighlights = [
   {
-    icon: Scale,
     title: '1. Intermediary Marketplace',
     badge: 'IT Act 2000',
     summary: 'UrService connects clients with verified independent service providers (Vendors). Vendors operate as independent contractors, not direct employees of UrService.',
@@ -41,7 +24,6 @@ export const termsHighlights = [
     ]
   },
   {
-    icon: CreditCard,
     title: '2. Transparent Pricing & Payments',
     badge: 'No Hidden Fees',
     summary: 'All pricing, minimum visit charges, and taxes are clearly displayed before booking confirmation.',
@@ -52,7 +34,6 @@ export const termsHighlights = [
     ]
   },
   {
-    icon: RefreshCwIcon,
     title: '3. Cancellations & Instant Refunds',
     badge: 'Client Friendly',
     summary: 'Free cancellation up to 2 hours before the scheduled service time.',
@@ -63,7 +44,6 @@ export const termsHighlights = [
     ]
   },
   {
-    icon: ShieldCheck,
     title: '4. Zero Tolerance for Theft & Misconduct',
     badge: 'Zero Tolerance',
     summary: 'UrService maintains strict safety standards for all clients and vendors.',
@@ -74,7 +54,6 @@ export const termsHighlights = [
     ]
   },
   {
-    icon: Ban,
     title: '5. Fair Platform Use & Prohibited Acts',
     badge: 'Code of Conduct',
     summary: 'Users must maintain respectful communication and refrain from off-platform circumvention.',
@@ -85,7 +64,6 @@ export const termsHighlights = [
     ]
   },
   {
-    icon: Building2,
     title: '6. Governing Law & Grievance Redressal',
     badge: 'India Jurisdiction',
     summary: 'Governed by the laws of India with exclusive jurisdiction in Hyderabad, Telangana.',
@@ -98,7 +76,6 @@ export const termsHighlights = [
 
 export const privacyHighlights = [
   {
-    icon: Eye,
     title: '1. What Information We Collect',
     badge: 'DPDP Act 2023',
     summary: 'We collect only the essential personal data necessary to provide and secure services.',
@@ -109,7 +86,6 @@ export const privacyHighlights = [
     ]
   },
   {
-    icon: Lock,
     title: '2. How Your Data Is Used',
     badge: 'Strict Purpose',
     summary: 'Your information is used strictly to fulfill your bookings and ensure safety.',
@@ -120,7 +96,6 @@ export const privacyHighlights = [
     ]
   },
   {
-    icon: ShieldCheck,
     title: '3. Data Sharing & Zero Sale Policy',
     badge: 'Never Sold',
     summary: 'We NEVER sell or monetize your personal information to third-party advertisers.',
@@ -131,7 +106,6 @@ export const privacyHighlights = [
     ]
   },
   {
-    icon: AlertTriangle,
     title: '4. Law Enforcement Disclosures',
     badge: 'Safety First',
     summary: 'In legal emergencies or criminal investigations, we uphold client safety above all.',
@@ -141,7 +115,6 @@ export const privacyHighlights = [
     ]
   },
   {
-    icon: FileCheck2,
     title: '5. Your Privacy Rights & Controls',
     badge: 'User Control',
     summary: 'You remain in full control of your personal data at all times.',
@@ -152,7 +125,6 @@ export const privacyHighlights = [
     ]
   },
   {
-    icon: Building2,
     title: '6. Data Protection Officer',
     badge: 'Direct Redressal',
     summary: 'Reach our dedicated Data Protection Officer for any privacy concerns.',
@@ -163,79 +135,65 @@ export const privacyHighlights = [
   }
 ];
 
-function RefreshCwIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-      <path d="M3 21v-5h5" />
-    </svg>
-  );
-}
-
-export default function TermsPrivacyModal({
-  isOpen,
+function TermsPrivacyModalDialog({
   onClose,
   defaultTab = 'terms',
-  initialAccepted = { terms: false, privacy: false },
+  initialAccepted,
   onAccept
-}: TermsPrivacyModalProps) {
+}: Omit<TermsPrivacyModalProps, 'isOpen'>) {
   const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>(defaultTab);
-  const [termsAccepted, setTermsAccepted] = useState(!!initialAccepted.terms);
-  const [privacyAccepted, setPrivacyAccepted] = useState(!!initialAccepted.privacy);
-  const [hasConfirmed, setHasConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(Boolean(initialAccepted?.terms));
+  const [privacyAccepted, setPrivacyAccepted] = useState(Boolean(initialAccepted?.privacy));
 
+  // Lock body scroll while modal is mounted and restore on unmount
   useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab, isOpen]);
-
-  useEffect(() => {
-    if (initialAccepted.terms !== undefined) setTermsAccepted(initialAccepted.terms);
-    if (initialAccepted.privacy !== undefined) setPrivacyAccepted(initialAccepted.privacy);
-  }, [initialAccepted.terms, initialAccepted.privacy]);
-
-  // Prevent background scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen]);
+  }, []);
 
-  if (!isOpen) return null;
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
-  const handleTickBoth = () => {
+  const handleToggleTerms = useCallback((checked: boolean) => {
+    setTermsAccepted(checked);
+    if (onAccept) {
+      onAccept({ terms: checked, privacy: privacyAccepted });
+    }
+  }, [onAccept, privacyAccepted]);
+
+  const handleTogglePrivacy = useCallback((checked: boolean) => {
+    setPrivacyAccepted(checked);
+    if (onAccept) {
+      onAccept({ terms: termsAccepted, privacy: checked });
+    }
+  }, [onAccept, termsAccepted]);
+
+  const handleTickBoth = useCallback(() => {
     setTermsAccepted(true);
     setPrivacyAccepted(true);
-    setHasConfirmed(true);
     if (onAccept) {
       onAccept({ terms: true, privacy: true });
     }
-    setTimeout(() => {
-      onClose();
-    }, 400);
-  };
+    onClose();
+  }, [onAccept, onClose]);
 
-  const handleConfirmSelected = () => {
-    setHasConfirmed(true);
+  const handleConfirmSelected = useCallback(() => {
     if (onAccept) {
       onAccept({ terms: termsAccepted, privacy: privacyAccepted });
     }
     onClose();
-  };
+  }, [onAccept, onClose, termsAccepted, privacyAccepted]);
 
   const allAccepted = termsAccepted && privacyAccepted;
 
@@ -244,26 +202,23 @@ export default function TermsPrivacyModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs"
     >
       <div
-        className="bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh]"
+        className="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 via-white to-indigo-50/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
-              <Sparkles className="w-5 h-5 text-indigo-100" />
-            </div>
-            <div>
-              <h2 id="legal-modal-title" className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                Policy & Agreement Highlights
-              </h2>
-              <p className="text-xs text-slate-500">Short, plain English summary • Read in 1 minute</p>
-            </div>
+        {/* Clean Header - No Logo */}
+        <div className="px-5 py-4 sm:px-6 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 id="legal-modal-title" className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+              Terms & Privacy Agreement
+            </h2>
+            <p className="text-xs text-slate-500">Short, plain English summary</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close modal"
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -272,106 +227,88 @@ export default function TermsPrivacyModal({
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="px-5 pt-3 pb-2 sm:px-6 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2">
+        {/* Tab Switcher - Clean Text */}
+        <div className="px-5 pt-3 pb-2 sm:px-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
           <div className="flex items-center p-1 bg-slate-200/80 rounded-xl w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveTab('terms')}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'terms'
                   ? 'bg-white text-indigo-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Scale className="w-3.5 h-3.5" />
-              <span>Terms of Service</span>
-              {termsAccepted && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />
-              )}
+              Terms of Service {termsAccepted ? '(Agreed)' : ''}
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('privacy')}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'privacy'
                   ? 'bg-white text-indigo-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Privacy Policy</span>
-              {privacyAccepted && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />
-              )}
+              Privacy Policy {privacyAccepted ? '(Agreed)' : ''}
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Updated Sept 2026</span>
+          <div className="hidden sm:block text-[11px] text-slate-500 font-medium">
+            Updated Sept 2026
           </div>
         </div>
 
-        {/* Content Body - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 space-y-3.5 bg-slate-50/30">
-          {(activeTab === 'terms' ? termsHighlights : privacyHighlights).map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={idx}
-                className="bg-white border border-slate-200/90 hover:border-indigo-200 rounded-xl p-3.5 sm:p-4 shadow-xs transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h3>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
-                    {item.badge}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 font-normal leading-relaxed mb-2 ml-9">
-                  {item.summary}
-                </p>
-                <ul className="ml-9 space-y-1 text-[11px] text-slate-500">
-                  {item.points.map((pt, pIdx) => (
-                    <li key={pIdx} className="flex items-start gap-1.5">
-                      <span className="text-indigo-500 font-bold leading-tight">•</span>
-                      <span className="leading-snug">{pt}</span>
-                    </li>
-                  ))}
-                </ul>
+        {/* Content Body - Clean cards without logos */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 space-y-3 bg-slate-50/30">
+          {(activeTab === 'terms' ? termsHighlights : privacyHighlights).map((item, idx) => (
+            <div
+              key={idx}
+              className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h3>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
+                  {item.badge}
+                </span>
               </div>
-            );
-          })}
+              <p className="text-xs text-slate-600 font-normal leading-relaxed mb-2">
+                {item.summary}
+              </p>
+              <ul className="space-y-1 text-[11px] text-slate-500">
+                {item.points.map((pt, pIdx) => (
+                  <li key={pIdx} className="flex items-start gap-1.5">
+                    <span className="text-slate-400 font-bold leading-tight">•</span>
+                    <span className="leading-snug">{pt}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
           <div className="pt-2 text-center">
             <Link
               href={activeTab === 'terms' ? '/terms' : '/privacy'}
               target="_blank"
-              className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline underline-offset-2"
             >
-              <span>View full legal document on separate page</span>
-              <ExternalLink className="w-3 h-3" />
+              View full document on separate page
             </Link>
           </div>
         </div>
 
         {/* Pop-up Tick Action Footer */}
-        <div className="px-5 py-4 sm:px-6 bg-white border-t border-slate-200/80 shadow-lg space-y-3">
-          <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200/70">
+        <div className="px-5 py-4 sm:px-6 bg-white border-t border-slate-200 shadow-lg space-y-3">
+          <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
+                onChange={(e) => handleToggleTerms(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
               />
               <span className="text-xs text-slate-700 font-medium leading-tight">
-                I have read and agree to the <span className="font-semibold text-slate-900">Terms of Service</span> (Zero theft policy, marketplace intermediary rules & cancellations)
+                I agree to the <span className="font-semibold text-slate-900">Terms of Service</span>
               </span>
             </label>
 
@@ -379,31 +316,25 @@ export default function TermsPrivacyModal({
               <input
                 type="checkbox"
                 checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
+                onChange={(e) => handleTogglePrivacy(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
               />
               <span className="text-xs text-slate-700 font-medium leading-tight">
-                I acknowledge and accept the <span className="font-semibold text-slate-900">Privacy Policy</span> (Data encryption, zero advertisement selling & KYC verification)
+                I agree to the <span className="font-semibold text-slate-900">Privacy Policy</span>
               </span>
             </label>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-1">
-            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 self-start sm:self-center">
-              {allAccepted ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Both policies accepted
-                </span>
-              ) : (
-                <span>Tick both checkboxes above to accept</span>
-              )}
+          <div className="flex items-center justify-between gap-2.5 pt-1">
+            <div className="text-[11px] text-slate-500">
+              {allAccepted ? 'Both accepted' : 'Tick checkboxes to agree'}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 sm:flex-none px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -412,19 +343,17 @@ export default function TermsPrivacyModal({
                 <button
                   type="button"
                   onClick={handleTickBoth}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Tick Both & Agree</span>
+                  Tick Both & Agree
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={handleConfirmSelected}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Confirm & Proceed</span>
+                  Confirm & Proceed
                 </button>
               )}
             </div>
@@ -433,4 +362,9 @@ export default function TermsPrivacyModal({
       </div>
     </div>
   );
+}
+
+export default function TermsPrivacyModal(props: TermsPrivacyModalProps) {
+  if (!props.isOpen) return null;
+  return <TermsPrivacyModalDialog {...props} />;
 }
