@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { sendPhoneOtp, verifyPhoneOtp, formatPhoneNumber } from '../../../../lib/auth';
 import { apiClient } from '../../../../lib/api-client';
-import { ArrowLeft, Phone, ShieldCheck, User, MapPin, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Phone, ShieldCheck, User, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import TermsPrivacyModal from '../../../../components/terms-privacy-modal';
 
 export default function ClientRegisterPage() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function ClientRegisterPage() {
   const [city, setCity] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [otp, setOtp] = useState('');
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
@@ -197,17 +200,43 @@ export default function ClientRegisterPage() {
                 id="acceptTerms"
                 checked={acceptTerms}
                 onChange={(e) => setAcceptTerms(e.target.checked)}
-                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-white"
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-white cursor-pointer"
               />
               <label htmlFor="acceptTerms" className="ml-2.5 text-xs text-slate-500 select-none leading-relaxed">
                 I agree to the{' '}
-                <Link href="/terms" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-semibold transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalModalTab('terms');
+                    setLegalModalOpen(true);
+                  }}
+                  className="text-indigo-600 hover:text-indigo-700 font-semibold underline underline-offset-2 cursor-pointer"
+                >
                   Terms of Service
-                </Link>{' '}
+                </button>{' '}
                 and{' '}
-                <Link href="/privacy" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-semibold transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalModalTab('privacy');
+                    setLegalModalOpen(true);
+                  }}
+                  className="text-indigo-600 hover:text-indigo-700 font-semibold underline underline-offset-2 cursor-pointer"
+                >
                   Privacy Policy
-                </Link>.
+                </button>
+                .{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalModalTab('terms');
+                    setLegalModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded ml-1 cursor-pointer transition-colors"
+                >
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <span>Review in pop-up</span>
+                </button>
               </label>
             </div>
 
@@ -282,6 +311,19 @@ export default function ClientRegisterPage() {
           </Link>
         </div>
       </div>
+
+      <TermsPrivacyModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalModalTab}
+        initialAccepted={{ terms: acceptTerms, privacy: acceptTerms }}
+        onAccept={(state) => {
+          if (state.terms && state.privacy) {
+            setAcceptTerms(true);
+            setErrorMsg(null);
+          }
+        }}
+      />
     </div>
   );
 }

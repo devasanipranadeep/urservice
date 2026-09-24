@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { MapPin, Phone, User, Calendar, LogOut, Check, ArrowRight, ArrowLeft, Upload, FileText, Landmark } from 'lucide-react';
+import { MapPin, Phone, User, Calendar, LogOut, Check, ArrowRight, ArrowLeft, Upload, FileText, Landmark, Sparkles } from 'lucide-react';
+import TermsPrivacyModal from '../../../../components/terms-privacy-modal';
 
 import { sendPhoneOtp, verifyPhoneOtp, formatPhoneNumber } from '../../../../lib/auth';
 import { apiClient } from '../../../../lib/api-client';
@@ -86,6 +87,8 @@ export default function VendorRegistrationWizard() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
 
   // Phone OTP state for Step 1
   const [otpStep, setOtpStep] = useState<'info' | 'otp'>('info');
@@ -1209,16 +1212,41 @@ export default function VendorRegistrationWizard() {
             </div>
 
             {/* Checkboxes Agreements */}
-            <div className="space-y-1.5 border-t border-slate-200 pt-3">
+            <div className="space-y-2 border-t border-slate-200 pt-3">
+              <div className="flex items-center justify-between pb-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Legal Agreements</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalModalTab('terms');
+                    setLegalModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg cursor-pointer transition-colors"
+                >
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <span>Review & Tick in Pop-up</span>
+                </button>
+              </div>
+
               <div className="flex items-start">
                 <input
                   type="checkbox"
                   id="acceptTerms"
                   {...s6Form.register('acceptTerms')}
-                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white"
+                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white cursor-pointer"
                 />
                 <label htmlFor="acceptTerms" className="ml-2 text-xs text-slate-600">
-                  I accept the <Link href="/terms" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-semibold">Terms of Service</Link>
+                  I accept the{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLegalModalTab('terms');
+                      setLegalModalOpen(true);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Terms of Service
+                  </button>
                 </label>
               </div>
               {s6Form.formState.errors.acceptTerms?.message && (
@@ -1230,10 +1258,20 @@ export default function VendorRegistrationWizard() {
                   type="checkbox"
                   id="acceptPrivacy"
                   {...s6Form.register('acceptPrivacy')}
-                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white"
+                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white cursor-pointer"
                 />
                 <label htmlFor="acceptPrivacy" className="ml-2 text-xs text-slate-600">
-                  I accept the <Link href="/privacy" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-semibold">Privacy Policy</Link>
+                  I accept the{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLegalModalTab('privacy');
+                      setLegalModalOpen(true);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
                 </label>
               </div>
               {s6Form.formState.errors.acceptPrivacy?.message && (
@@ -1245,10 +1283,20 @@ export default function VendorRegistrationWizard() {
                   type="checkbox"
                   id="acceptAgreement"
                   {...s6Form.register('acceptAgreement')}
-                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white"
+                  className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-indigo-600 bg-white cursor-pointer"
                 />
                 <label htmlFor="acceptAgreement" className="ml-2 text-xs text-slate-600">
-                  I accept the <Link href="/terms" target="_blank" className="text-indigo-600 hover:text-indigo-500 font-semibold">Vendor Partner Agreement</Link>
+                  I accept the{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLegalModalTab('terms');
+                      setLegalModalOpen(true);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Vendor Partner Agreement
+                  </button>
                 </label>
               </div>
               {s6Form.formState.errors.acceptAgreement?.message && (
@@ -1295,6 +1343,25 @@ export default function VendorRegistrationWizard() {
           </Link>
         </div>
       </div>
+
+      <TermsPrivacyModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalModalTab}
+        initialAccepted={{
+          terms: s6Form.watch('acceptTerms'),
+          privacy: s6Form.watch('acceptPrivacy'),
+        }}
+        onAccept={(state) => {
+          if (state.terms) {
+            s6Form.setValue('acceptTerms', true, { shouldValidate: true });
+            s6Form.setValue('acceptAgreement', true, { shouldValidate: true });
+          }
+          if (state.privacy) {
+            s6Form.setValue('acceptPrivacy', true, { shouldValidate: true });
+          }
+        }}
+      />
     </div>
   );
 }

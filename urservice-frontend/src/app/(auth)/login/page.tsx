@@ -15,6 +15,7 @@ import {
   ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
+import TermsPrivacyModal from '../../../components/terms-privacy-modal';
 
 interface MeResponse {
   id: string;
@@ -32,6 +33,8 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'terms' | 'privacy'>('terms');
 
   // Status and feedback
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -450,13 +453,28 @@ export default function LoginPage() {
         )}
 
         {/* Footer Links */}
-        <div className="mt-7 pt-5 border-t border-slate-100 flex items-center justify-center text-xs text-slate-500">
-          <Link
-            href="/privacy"
-            className="text-slate-400 hover:text-slate-600 transition-colors"
+        <div className="mt-7 pt-5 border-t border-slate-100 flex items-center justify-center gap-3 text-xs text-slate-500">
+          <button
+            type="button"
+            onClick={() => {
+              setLegalTab('terms');
+              setLegalOpen(true);
+            }}
+            className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+          >
+            Terms of Service
+          </button>
+          <span className="text-slate-300">•</span>
+          <button
+            type="button"
+            onClick={() => {
+              setLegalTab('privacy');
+              setLegalOpen(true);
+            }}
+            className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
           >
             Privacy Policy
-          </Link>
+          </button>
         </div>
 
         {/* Registration Options Footer */}
@@ -479,6 +497,12 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      <TermsPrivacyModal
+        isOpen={legalOpen}
+        onClose={() => setLegalOpen(false)}
+        defaultTab={legalTab}
+      />
     </div>
   );
 }
