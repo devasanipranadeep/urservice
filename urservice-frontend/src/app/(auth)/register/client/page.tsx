@@ -186,13 +186,6 @@ export default function ClientRegisterPage() {
               </div>
             </div>
 
-            {/* Security & Theft Disclaimer Notice */}
-            <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
-              <p className="font-bold text-amber-950 mb-1">
-                🛡️ Platform Intermediary & Security Policy Notice:
-              </p>
-              UrService acts solely as an intermediary connecting clients with independent vendors. UrService is not liable for house theft or property loss. In the event of confirmed theft, UrService administration will immediately suspend the vendor and release the vendor&apos;s verified identity details to the client and legal authorities.
-            </div>
 
             <div className="flex items-start pt-1">
               <input
